@@ -1,6 +1,8 @@
-import {SystemMessage, SYSTEM_MESSAGE} from './SystemMessage'
-import {TextMessage, TEXT_MESSAGE} from './TextMessage'
-import {ImageMessage, IMAGE_MESSAGE} from './ImageMessage'
+import {TEXT_MESSAGE, IMAGE_MESSAGE, SYSTEM_MESSAGE} from './messageType'
+
+import {SystemMessage} from './SystemMessage'
+import {TextMessage} from './TextMessage'
+import {ImageMessage} from './ImageMessage'
 
 /*
  * typs: is string value, indicates message type
@@ -23,4 +25,4 @@ function createMessage(type, prop){
 // function registerNewMessage(type, ...props) {
 
 // }
-export { createMessage, SYSTEM_MESSAGE, TEXT_MESSAGE, IMAGE_MESSAGE }
+export { createMessage }

@@ -1,14 +1,10 @@
 import React, { Component } from 'react';
 import './App.css';
-
-import {delay} from './util'
+import WClient from './wclient'
+import {log, isObj, delay, createMessageBaseServerMsg, createTextMessage, createSystemMessage, createImageMessage} from './util'
 import MsgWindow from './component/msgwindow'
 
-import TextMessage from './component/message/ui/TextMessage'
-import ImageMessage from './component/message/ui/ImageMessage'
-import SystemMessage from './component/message/ui/SystemMessage'
-
-import {createMessage, TEXT_MESSAGE, IMAGE_MESSAGE, SYSTEM_MESSAGE} from './component/message/messageFactory'
+import {TEXT_MESSAGE, IMAGE_MESSAGE} from './component/message/messageType'
 
 class App extends Component {
 
@@ -18,72 +14,107 @@ class App extends Component {
 
   maxMsgSize = 100
 
+  wclient = null
+
   constructor(props) {
     super(props);
     this.state = {
+      messagetosend: '',
       arrMsg: [],
     };
 
-    this.handleSystemMessage = this.handleSystemMessage.bind(this);
-    this.handleCreateTextMessage = this.handleCreateTextMessage.bind(this);
+    this.handleChange = this.handleChange.bind(this);
+    this.requestImageFromWs = this.requestImageFromWs.bind(this);
+    this.sendTextMessage = this.sendTextMessage.bind(this);
     this.handleCreateImageMessage = this.handleCreateImageMessage.bind(this);
+    this.handleLocaltest = this.handleLocaltest.bind(this);
+  }
+
+  componentDidMount (){
+    try{
+      this.wclient = new WClient('ws:172.29.32.10:8999')
+      if(this.wclient){
+        const errMsg = createSystemMessage('WebSocket connected!', 'info')
+        this.addNewMsg(errMsg);
+      }
+    }catch(ex){
+      const errMsg = createSystemMessage(ex.message, 'error')
+      this.addNewMsg(errMsg);
+    }
   }
 
   componentWillUnmount(){
     this.arrImgUrl.forEach((it)=>{
       URL.revokeObjectURL(it)
     })
+
+    this.wclient.close(1000, 'complete');
   }
 
   addNewMsg(msgObj){
-    const {arrMsg} = this.state;
-    const dupArrMsg = [...arrMsg];
-    if(this.maxMsgSize <= arrMsg.length){
-      dupArrMsg.shift();
+    if(isObj(msgObj) && msgObj !== null ){
+      const {arrMsg} = this.state;
+      const arrMsgNew = arrMsg.concat(Array.isArray(msgObj) ? msgObj : [ msgObj ])
+      if(this.maxMsgSize < arrMsgNew.length){
+        arrMsgNew.shift();
+      }
+      this.setState({
+        arrMsg: arrMsgNew,
+      } )
+    }else{
+      log('addNewMsg -> invalid msgObj')
     }
-    dupArrMsg.push(msgObj)
-    this.setState({
-      arrMsg: dupArrMsg
-    } )
   }
 
-  handleSystemMessage (){
-    const sysMsg = createMessage(
-      SYSTEM_MESSAGE,
-      {
-        text: 'this is a system info message',
-        render: SystemMessage,
-        level: 'info'
-      }
-    )
-    this.addNewMsg(sysMsg)
+  handleChange(event) {
+    this.setState({ messagetosend: event.target.value });
+  }
+
+  handleLocaltest (){
+    // create text message and push to msg array
+    const text="[text message] React is an open-source JavaScript library for building user interfaces or UI components. It is maintained by Facebook and a community of individual developers and companies. React can be used as a base in the development of single-page or mobile applications"
+    const txtMsg = createTextMessage(text)
+
+    // create system messages and push to msg array
+    const sysMsg = createSystemMessage( 'this is a system info message', 'info');
     delay(2000).then(
       ()=>{
         this.addNewMsg(
-          createMessage(
-            SYSTEM_MESSAGE,
-            {
-              text: 'this is a system warning message',
-              render: SystemMessage,
-              level: 'warn'
-            }
-          )
+          createSystemMessage( 'this is a system warning message', 'warn')
         )
       }
     );
+
+    this.addNewMsg([ txtMsg, sysMsg ])
   }
 
-  handleCreateTextMessage(){
-    const text="React is an open-source JavaScript library for building user interfaces or UI components. It is maintained by Facebook and a community of individual developers and companies. React can be used as a base in the development of single-page or mobile applications"
-    const txtMsg = createMessage(
-      TEXT_MESSAGE,
-      {text, render: TextMessage}
-    )
-    this.addNewMsg(txtMsg)
+  requestImageFromWs (){
+    log('requestImageFromWs')
+    this.wclient.sendMessage(IMAGE_MESSAGE)
+        .then(res=>{
+          const severMsg = JSON.parse(res);
+          this.addNewMsg(
+            createMessageBaseServerMsg(severMsg)
+          )
+        })
+  }
+
+  sendTextMessage(){
+    const {messagetosend} = this.state;
+    if(messagetosend.length === 0){
+      return;
+    }
+    log('sendTextMessage ->', messagetosend)
+    this.wclient.sendMessage(TEXT_MESSAGE, messagetosend)
+        .then(res=>{
+          const severMsg = JSON.parse(res);
+          this.addNewMsg(
+            createMessageBaseServerMsg(severMsg)
+          )
+        })
   }
 
   handleCreateImageMessage(){
-    const imageMessage = ImageMessage;
     this.clickCount += 1
     const reqfilename = this.clickCount % 2 === 0 ? 'react.jpg' : 'ringc.png';
     fetch(`/api/getimage/${reqfilename}`)
@@ -94,29 +125,34 @@ class App extends Component {
           // const svg = Object.assign({}, blob, {type: 'image/svg+xml'})
           const src = URL.createObjectURL(blob)
           this.arrImgUrl.push(src);
-          const imgMsg = createMessage(
-            IMAGE_MESSAGE,
-            {
-              src,
-              render: imageMessage
-            })
+          const imgMsg = createImageMessage(src);
           this.addNewMsg(imgMsg)
         }
       );
-
   }
 
   render() {
-    const {arrMsg} = this.state;
-
+    const {arrMsg, messagetosend} = this.state;
     return (
       <div className="App">
         <header className="App-header">
           <MsgWindow arrMsg={arrMsg} />
+          <form onSubmit={this.handleSubmit}>
+            <label htmlFor="name">
+              <input
+                placeholder='please input message'
+                id="messageinput"
+                type="text"
+                value={messagetosend}
+                onChange={this.handleChange}
+              />
+            </label>
+            <button type="button" onClick={this.sendTextMessage}>Send</button>
+          </form>
           <div className="controlPanel">
-            <button type="button" onClick={this.handleSystemMessage}>SystemMessage</button>
-            <button type="button" onClick={this.handleCreateTextMessage}>TextMessage</button>
-            <button type="button" onClick={this.handleCreateImageMessage}>ImageMessage</button>
+            <button type="button" onClick={this.requestImageFromWs}>Image from WebSocket Sever</button>
+            <button type="button" onClick={this.handleCreateImageMessage}>Image from Http Server</button>
+            <button type="button" onClick={this.handleLocaltest}>Local test</button>
           </div>
         </header>
       </div>
