@@ -27,9 +27,9 @@ export function formatDate(date){
     replace(/\..+/, '')     // delete the dot and everything after
 }
 
-export function log(level='info', message){
+export function log(message, level='info'){
   //
-  console.log(`[${level}] [formatDate(new Date())] ${message}`);
+  console.log(`[${level}] [${formatDate(new Date())}] ${message}`);
 }
 
 export function createSystemMessage(text, level){
@@ -71,7 +71,14 @@ export function createMessageBaseServerMsg(svrMsg){
       case SYSTEM_MESSAGE:
         return createSystemMessage(svrMsg.content, svrMsg.level)
       case IMAGE_MESSAGE:
-        return createImageMessage(svrMsg.src)
+        {
+          console.log('IMAGE_MESSAGE', svrMsg);
+          const buffer = svrMsg.content.data;
+          const blob = new Blob([new Uint8Array(buffer, 0, buffer.length)]);
+          // const blob = new Blob([ svrMsg.content.data ], {type:'image/png'})
+          const src = URL.createObjectURL(blob);
+          return createImageMessage(src)
+        }
       default:
         return null;
     }

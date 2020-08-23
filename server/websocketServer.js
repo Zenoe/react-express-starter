@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http')
 const WebSocket = require('ws')
+const fs = require('fs')
 
 const SYSTEM_MESSAGE='SYSTEM_MESSAGE';
 const TEXT_MESSAGE='TEXT_MESSAGE';
@@ -42,20 +43,28 @@ wss.on('connection', ws => {
         const message = JSON.parse(msg);
         setTimeout(() => {
             if (message.isBroadcast) {
+              if(message.type === TEXT_MESSAGE){
                 //send back the message to the other clients
                 wss.clients
-                    .forEach(client => {
-                        if (client != ws) {
-                            client.send(createMessage(TEXT_MESSAGE, message.content, true, message.sender));
-                        }
-                    });
+                   .forEach(client => {
+                     if (client !== ws) {
+                       client.send(createMessage(TEXT_MESSAGE, message.content, false, message.sender));
+                     }
+                   });
+              }
             }
+          if(message.type === TEXT_MESSAGE){
             ws.send(createMessage(TEXT_MESSAGE, `You sent -> ${message.content}`, message.isBroadcast));
-        }, 1000);
+          } else if(message.type === IMAGE_MESSAGE){
+            fs.readFile(`${__dirname}/asset/socket.png`, function(err, data){
+              ws.send(createMessage(IMAGE_MESSAGE, data))
+            })
+            // todo send stream with websocket
+          }
+        }, 10);
     });
 
-    //send immediatly a feedback to the incoming connection
-    ws.send(createMessage(TEXT_MESSAGE, 'Hi there, I am a WebSocket server'));
+  // ws.send(createMessage(TEXT_MESSAGE, 'Hi there, I am a WebSocket server'));
 
     ws.on('error', (err) => {
         console.warn(`Client disconnected - reason: ${err}`);
