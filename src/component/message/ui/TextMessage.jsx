@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
 import styles from './message.less';
 
 function TextMessage({ message, showTimeStamp }) {
-  // console.log('text:', message.text);
+  console.log('text:', message.text);
   return (
     <div className={styles.textmessage}>
       <div>{message.text}</div>

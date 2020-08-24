@@ -56,7 +56,7 @@ wss.on('connection', ws => {
           if(message.type === TEXT_MESSAGE){
             ws.send(createMessage(TEXT_MESSAGE, `You sent -> ${message.content}`, message.isBroadcast));
           } else if(message.type === IMAGE_MESSAGE){
-            fs.readFile(`${__dirname}/asset/socket.png`, function(err, data){
+            fs.readFile(`${__dirname}/asset/react.jpg`, function(err, data){
               ws.send(createMessage(IMAGE_MESSAGE, data))
             })
             // todo send stream with websocket

@@ -5,7 +5,6 @@ import PropTypes from 'prop-types';
 import styles from './message.less';
 
 function SystemMessage({ message, showTimeStamp }) {
-  console.log('level:', message.level);
   return (
     <div className={styles.systemmessage}>
       <div>-----<span className={styles[`systext-${message.level}`]}>{message.text}</span>-----</div>

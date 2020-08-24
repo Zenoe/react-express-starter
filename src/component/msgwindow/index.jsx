@@ -1,8 +1,8 @@
 import React, {useEffect, useRef} from 'react';
 import PropTypes from 'prop-types';
+import { v4 } from 'uuid'
 
 import * as styles from './msgwindow.less'
-
 import MsgContainer from '../msgcontainer'
 
 const defaultRender = (msg) =>{
@@ -17,7 +17,7 @@ const renderMsg = (msgs) =>{
 
   return msgs.map((msg)=>{
     const RenderComp = msg.render;
-    return <MsgContainer key={msg.timeStamp}>{msg.render ? <RenderComp message={msg} /> : defaultRender(msg)}</MsgContainer>
+    return <MsgContainer key={v4()}>{msg.render ? <RenderComp message={msg} /> : defaultRender(msg)}</MsgContainer>
   });
 }
 
@@ -25,8 +25,6 @@ const MessageWindow=({arrMsg})=>{
   const bottomDiv = useRef(null)
 
   const scrollToBottom = () => {
-    console.log('scrollToBottom', bottomDiv);
-
     bottomDiv.current.scrollIntoView({ behavior: "smooth" })
   }
 

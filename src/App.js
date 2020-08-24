@@ -1,163 +1,157 @@
-import React, { Component } from 'react';
+import React, {useState, useEffect, useRef } from 'react';
 import './App.css';
 import WClient from './wclient'
-import {log, isObj, delay, createMessageBaseServerMsg, createTextMessage, createSystemMessage, createImageMessage} from './util'
+import {log, isObj, delay, } from './util'
 import MsgWindow from './component/msgwindow'
 
 import {TEXT_MESSAGE, IMAGE_MESSAGE} from './component/message/messageType'
+import {createMessageBaseServerMsg, createTextMessage, createSystemMessage, createImageMessage} from './component/message/messageFactory'
 
-class App extends Component {
+function App(){
 
-  arrImgUrl = []
+  const arrImgUrl = []
 
-  clickCount = 0
+  const maxMsgSize = 100
 
-  maxMsgSize = 100
 
-  wclient = null
+  const [wclient, setWclient] = useState(null)
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      messagetosend: '',
-      arrMsg: [],
-    };
+  const [ messagetosend, setMessagetosend ] = useState('')
 
-    this.handleChange = this.handleChange.bind(this);
-    this.requestImageFromWs = this.requestImageFromWs.bind(this);
-    this.sendTextMessage = this.sendTextMessage.bind(this);
-    this.handleCreateImageMessage = this.handleCreateImageMessage.bind(this);
-    this.handleLocaltest = this.handleLocaltest.bind(this);
-  }
+  const [ arrMsg, setArrMsg ] = useState([])
+  const arrMsgRef = useRef(null);
+  arrMsgRef.current = arrMsg;
 
-  componentDidMount (){
-    try{
-      this.wclient = new WClient('ws:172.29.32.10:8999')
-      if(this.wclient){
-        const errMsg = createSystemMessage('WebSocket connected!', 'info')
-        this.addNewMsg(errMsg);
-      }
-    }catch(ex){
-      const errMsg = createSystemMessage(ex.message, 'error')
-      this.addNewMsg(errMsg);
-    }
-  }
-
-  componentWillUnmount(){
-    this.arrImgUrl.forEach((it)=>{
-      URL.revokeObjectURL(it)
-    })
-
-    this.wclient.close(1000, 'complete');
-  }
-
-  addNewMsg(msgObj){
+  /*
+   * When addNewMsg function is called in an asynchrous or so call callback function
+   * it couldn't get the latest arrMsg due to how closure work in javascript. the value
+   * of arrMsg is given in the initial render phase, when it is intact
+   * So I use arrMsgRef to refer the latest arrMsg
+   */
+  const addNewMsg = (msgObj) =>{
     if(isObj(msgObj) && msgObj !== null ){
-      const {arrMsg} = this.state;
-      const arrMsgNew = arrMsg.concat(Array.isArray(msgObj) ? msgObj : [ msgObj ])
-      if(this.maxMsgSize < arrMsgNew.length){
+      // const arrMsgNew = arrMsg.concat(Array.isArray(msgObj) ? msgObj : [ msgObj ])
+      const arrMsgNew = arrMsgRef.current.concat(Array.isArray(msgObj) ? msgObj : [ msgObj ])
+      if(maxMsgSize < arrMsgNew.length){
         arrMsgNew.shift();
       }
-      this.setState({
-        arrMsg: arrMsgNew,
-      } )
+      setArrMsg(arrMsgNew)
     }else{
       log('addNewMsg -> invalid msgObj')
     }
   }
 
-  handleChange(event) {
-    this.setState({ messagetosend: event.target.value });
+  const connect2WebSocket = (ws) =>{
+    try{
+      setWclient(new WClient(ws))
+    }catch(ex){
+      const errMsg = createSystemMessage(ex.message, 'error')
+      addNewMsg(errMsg);
+    }
   }
 
-  handleLocaltest (){
+  useEffect(()=>{
+    if(wclient){
+      const sysMsg = createSystemMessage('WebSocket connected!', 'info')
+      addNewMsg(sysMsg);
+    }
+  },[wclient])
+
+  useEffect(()=>{
+    connect2WebSocket('ws:172.29.32.10:8999');
+    return ()=>{
+      arrImgUrl.forEach((it)=>{
+        URL.revokeObjectURL(it)
+      })
+
+      wclient.close(1000, 'complete');
+    }
+  }, [])
+
+  // const handleChange = (event) => {
+  // cause rerendering everytime the value of input is changed
+  //   setMessagetosend(event.target.value)
+  // }
+
+  const handleLocaltest = () => {
     // create text message and push to msg array
     const text="[text message] React is an open-source JavaScript library for building user interfaces or UI components. It is maintained by Facebook and a community of individual developers and companies. React can be used as a base in the development of single-page or mobile applications"
     const txtMsg = createTextMessage(text)
 
     // create system messages and push to msg array
     const sysMsg = createSystemMessage( 'this is a system info message', 'info');
-    delay(2000).then(
+    addNewMsg([ txtMsg, sysMsg ])
+    delay(1000).then(
       ()=>{
-        this.addNewMsg(
+        addNewMsg(
           createSystemMessage( 'this is a system warning message', 'warn')
         )
       }
     );
-
-    this.addNewMsg([ txtMsg, sysMsg ])
   }
 
-  requestImageFromWs (){
+  const requestImageFromWs = ()=>{
     log('requestImageFromWs')
-    this.wclient.sendMessage(IMAGE_MESSAGE)
+    wclient.sendMessage(IMAGE_MESSAGE)
         .then(res=>{
           const severMsg = JSON.parse(res);
-          this.addNewMsg(
+          addNewMsg(
             createMessageBaseServerMsg(severMsg)
           )
         })
   }
 
-  sendTextMessage(){
-    const {messagetosend} = this.state;
-    if(messagetosend.length === 0){
-      return;
-    }
+  const sendTextMessage = ()=>{
+    setMessagetosend(event.target.value)
+    // if(messagetosend.length === 0){
+    //   return;
+    // }
     log('sendTextMessage ->', messagetosend)
-    this.wclient.sendMessage(TEXT_MESSAGE, messagetosend)
+    wclient.sendMessage(TEXT_MESSAGE, messagetosend)
         .then(res=>{
           const severMsg = JSON.parse(res);
-          this.addNewMsg(
+          addNewMsg(
             createMessageBaseServerMsg(severMsg)
           )
         })
   }
 
-  handleCreateImageMessage(){
-    this.clickCount += 1
-    const reqfilename = this.clickCount % 2 === 0 ? 'react.jpg' : 'ringc.png';
+  const handleCreateImageMessage = ()=>{
+    const reqfilename = 'ringc.png';
     fetch(`/api/getimage/${reqfilename}`)
       .then(response => response.blob())
       .then(
         blob=>{
-          // console.log('blob', blob);
-          // const svg = Object.assign({}, blob, {type: 'image/svg+xml'})
           const src = URL.createObjectURL(blob)
-          this.arrImgUrl.push(src);
+          arrImgUrl.push(src);
           const imgMsg = createImageMessage(src);
-          this.addNewMsg(imgMsg)
+          addNewMsg(imgMsg)
         }
       );
   }
 
-  render() {
-    const {arrMsg, messagetosend} = this.state;
-    return (
-      <div className="App">
-        <header className="App-header">
-          <MsgWindow arrMsg={arrMsg} />
-          <form onSubmit={this.handleSubmit}>
-            <label htmlFor="name">
-              <input
-                placeholder='please input message'
-                id="messageinput"
-                type="text"
-                value={messagetosend}
-                onChange={this.handleChange}
-              />
-            </label>
-            <button type="button" onClick={this.sendTextMessage}>Send</button>
-          </form>
-          <div className="controlPanel">
-            <button type="button" onClick={this.requestImageFromWs}>Image from WebSocket Sever</button>
-            <button type="button" onClick={this.handleCreateImageMessage}>Image from Http Server</button>
-            <button type="button" onClick={this.handleLocaltest}>Local test</button>
-          </div>
-        </header>
-      </div>
-    );
-  }
+  return (
+    <div className="App">
+      <header className="App-header">
+        <MsgWindow arrMsg={arrMsg} />
+        <form>
+          <input
+            placeholder='please input message'
+            id="messageinput"
+            type="text"
+            /* value={messagetosend} */
+            /* onChange={handleChange} */
+          />
+          <button type="button" onClick={sendTextMessage}>Send</button>
+        </form>
+        <div className="controlPanel">
+          <button type="button" onClick={requestImageFromWs}>Image from WebSocket Sever</button>
+          <button type="button" onClick={handleCreateImageMessage}>Image from Http Server</button>
+          <button type="button" onClick={handleLocaltest}>Local test</button>
+        </div>
+      </header>
+    </div>
+  );
 }
 
 export default App;
